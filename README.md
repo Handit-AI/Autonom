@@ -77,7 +77,7 @@ We’ll soon add:
 - Early test environments
 - Autonom SDKs
 
-Join the Discord and say hi: [https://discord.gg/ekiD3K24](https://discord.gg/fnWyEC4t)
+Join the Discord and say hi: <a href="https://discord.gg/fnWyEC4t" target="_blank">https://discord.gg/fnWyEC4t</a>
 
 ---
 
