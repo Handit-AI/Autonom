@@ -3,9 +3,8 @@
 </p>
 
 
-# 🧠 Autonom
+# 🧠 Autonom - The open-source engine to optimize your LLM agents in production.
 
-**The open-source engine to optimize your LLM agents in production.**  
 No black-box failures. No silent regressions. Just real feedback—and real improvements.
 
 Autonom is a **developer-first, open-source platform for optimizing LLM agents** in real-world settings.  
