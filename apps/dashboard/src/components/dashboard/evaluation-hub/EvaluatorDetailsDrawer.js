@@ -23,6 +23,8 @@ import Paper from '@mui/material/Paper';
 import Tooltip from '@mui/material/Tooltip';
 import { useUpdateEvaluationPromptMutation, useAssociatePromptToModelMutation, useUpdateAssociationMutation, useDeleteAssociationMutation } from '@/services/reviewersTemplateService';
 import Menu from '@mui/material/Menu';
+import { useGetAgentsQuery, useGetAgentByIdQuery } from '@/services/agentsService';
+import Autocomplete from '@mui/material/Autocomplete';
 
 export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpdate }) {
   const [isEditing, setIsEditing] = useState(true);
@@ -35,6 +37,7 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
   const [assocProviderId, setAssocProviderId] = useState('');
   const [assocProviderModel, setAssocProviderModel] = useState('');
   const [assocTokenId, setAssocTokenId] = useState('');
+  const [assocAgentId, setAssocAgentId] = useState('');
   const [editingAssocModelId, setEditingAssocModelId] = useState(null);
   const [editProviderId, setEditProviderId] = useState('');
   const [editProviderModel, setEditProviderModel] = useState('');
@@ -62,6 +65,8 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
   const { data: models = [] } = useGetModelsQuery();
   const { data: providers = [] } = useGetProvidersQuery();
   const { data: tokens = [] } = useGetIntegrationTokensQuery();
+  const { data: agents = [] } = useGetAgentsQuery();
+  const { data: selectedAgentData } = useGetAgentByIdQuery(assocAgentId, { skip: !assocAgentId });
   const [createToken] = useCreateIntegrationTokenMutation();
   const [updatePrompt] = useUpdateEvaluationPromptMutation();
   const [associatePromptToModel] = useAssociatePromptToModelMutation();
@@ -88,6 +93,7 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
       setAssocProviderId('');
       setAssocProviderModel('');
       setAssocTokenId('');
+      setAssocAgentId('');
       setEditingAssocModelId(null);
       setEditProviderId('');
       setEditProviderModel('');
@@ -119,6 +125,7 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
       setAssocProviderId('');
       setAssocProviderModel('');
       setAssocTokenId('');
+      setAssocAgentId('');
       setEditingAssocModelId(null);
       setEditProviderId('');
       setEditProviderModel('');
@@ -145,7 +152,20 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
 
   // Add availableModels logic
   const associatedModelIds = associations.map(a => a.modelId);
-  const availableModels = models.filter(m => !associatedModelIds.includes(m.id));
+
+  // Extract the IDs of models associated with the selected agent (if exists)
+  const agentModelIds = React.useMemo(() => {
+    if (!selectedAgentData?.AgentNodes) return [];
+    return selectedAgentData.AgentNodes
+      .filter(node => node.type === 'model' && (node.modelId || node.model_id))
+      .map(node => node.modelId ?? node.model_id);
+  }, [selectedAgentData]);
+
+  const availableModels = models.filter(m => {
+    const passesBaseFilters = !associatedModelIds.includes(m.id) && m.isReviewer === false;
+    if (!assocAgentId) return passesBaseFilters; // If no agent is selected, show all models that pass the base filters
+    return passesBaseFilters && agentModelIds.includes(m.id);
+  });
 
   // ... (reuse the same association logic as in NewEvaluatorDrawer) ...
 
@@ -495,17 +515,37 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
           {isEditing && addAssocOpen && (
             <Box sx={{ mt: 2, border: 1, borderColor: 'divider', borderRadius: 2, p: 2 }}>
               <Stack spacing={2}>
-                <TextField
-                  select
-                  label="LLM Node"
-                  value={assocModelId}
-                  onChange={e => setAssocModelId(e.target.value)}
+                <Autocomplete
+                  options={agents}
+                  getOptionLabel={(option) => option.name}
+                  value={agents.find(a => a.id === assocAgentId) || null}
+                  onChange={(_e, value) => setAssocAgentId(value ? value.id : '')}
+                  renderInput={(params) => <TextField {...params} label="Agent" fullWidth />}
                   fullWidth
-                >
-                  {availableModels.map(m => (
-                    <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
-                  ))}
-                </TextField>
+                />
+                {assocAgentId ? (
+                  availableModels.length > 0 ? (
+                    <TextField
+                      select
+                      label="LLM Node"
+                      value={assocModelId}
+                      onChange={e => setAssocModelId(e.target.value)}
+                      fullWidth
+                    >
+                      {availableModels.map(m => (
+                        <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                      ))}
+                    </TextField>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No LLM Nodes found for the selected Agent
+                    </Typography>
+                  )
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Select an Agent to see available LLM Nodes
+                  </Typography>
+                )}
                 
                 <Stack direction="row" spacing={1} justifyContent="flex-end">
                   <Button onClick={() => {
@@ -514,6 +554,7 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
                     setAssocProviderId('');
                     setAssocProviderModel('');
                     setAssocTokenId('');
+                    setAssocAgentId('');
                   }}>Cancel</Button>
                   <Button
                     onClick={() => {
@@ -525,6 +566,7 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
                           providerId: assocProviderId,
                           providerModel: assocProviderModel,
                           tokenId: assocTokenId,
+                          agentId: assocAgentId,
                         },
                       ]);
                       setAddAssocOpen(false);
@@ -532,9 +574,10 @@ export default function EvaluatorDetailsDrawer({ open, onClose, evaluator, onUpd
                       setAssocProviderId('');
                       setAssocProviderModel('');
                       setAssocTokenId('');
+                      setAssocAgentId('');
                     }}
                     variant="contained"
-                    disabled={!assocModelId}
+                    disabled={!assocAgentId || !assocModelId}
                     sx={{
                       backgroundImage: 'none',
                       backgroundColor: 'primary.main',
